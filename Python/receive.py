@@ -1,10 +1,9 @@
-# 适用于python3.10+以上版本的MQTT消息订阅接收样例
-
 import random
-from paho.mqtt import client as mqtt_client
+import ssl  # 如果后续有需要处理 SSL 相关配置可能用到
+import paho.mqtt.client as mqtt_client  # 添加此行以定义 mqtt_client
 
 
-def connect_mqtt(broker, port, username, password) -> mqtt_client:
+def connect_mqtt(broker, port, username, password, ssl_enable='no') -> mqtt_client:
     def on_connect(client, userdata, flags, rc, properties=None):
         if rc == 0:
             print("Connected to MQTT Broker!")
@@ -15,24 +14,30 @@ def connect_mqtt(broker, port, username, password) -> mqtt_client:
     client = mqtt_client.Client(callback_api_version=mqtt_client.CallbackAPIVersion.VERSION2,
                                 client_id=f'python-mqtt-{random.randint(0, 100)}')
     
-    client.tls_set()  # 使用默认 TLS 配置（适用于 Python 3.10+）
-    client.tls_insecure_set(True)  # 不校验证书（仅限测试）
     client.username_pw_set(username, password)
     client.on_connect = on_connect
+
+    # 配置SSL
+    if ssl_enable.lower() == 'yes':
+        # 启用SSL/TLS
+        client.tls_set()  # 可根据需要添加证书路径等参数
+        client.tls_insecure_set(True)  # 如果使用自签名证书可跳过验证
+    # 如果 ssl_enable 为 'no'，则不设置 SSL 相关参数
+
     client.connect(broker, port)
     return client
 
+# 新增 subscribe 函数定义
+def subscribe(client, topic):
+    def on_message(client, userdata, msg):
+        if msg.topic == topic:
+            print(f"Received message from topic '{msg.topic}': {msg.payload.decode()}")
 
-def subscribe(client: mqtt_client, topic):
-    def on_message(client, userdata, msg, properties=None):
-        print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
-
-    client.subscribe(topic, qos=2)  # 显式指定 qos=2 以接受任何 QoS 消息
+    client.subscribe(topic)
     client.on_message = on_message
 
-
-def run(broker, port, topic, username, password):
-    client = connect_mqtt(broker, port, username, password)
+def run(broker, port, topic, username, password, ssl_enable='no'):
+    client = connect_mqtt(broker, port, username, password, ssl_enable)
     subscribe(client, topic)
     try:
         client.loop_forever()
@@ -40,7 +45,7 @@ def run(broker, port, topic, username, password):
         print("Stopping MQTT client...")
         client.disconnect()
 
-#请在这里填入相关信息
+# 请在这里填入相关信息
 if __name__ == '__main__':
     # mqtt服务器地址
     broker = ''
@@ -52,4 +57,7 @@ if __name__ == '__main__':
     username = ''
     # 密码
     password = ''
-    run(broker, port, topic, username, password)
+    # 是否启用SSL (填写 'yes' 或 'no')
+    ssl_enable = ''
+
+    run(broker, port, topic, username, password, ssl_enable)
